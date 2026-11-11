@@ -14,11 +14,21 @@ function getUploadBlob() {
   return uploadBlob;
 }
 
+// Round trip for one tiny request. Prefers the browser's Resource Timing
+// (request sent -> first byte back), which leaves out JavaScript scheduling
+// delays; falls back to wall-clock time around fetch.
 async function ping(origin) {
+  const url = `${origin}/api/ping?r=${Math.random()}`;
   const t0 = now();
-  const r = await fetch(`${origin}/api/ping?r=${Math.random()}`, { cache: 'no-store' });
+  const r = await fetch(url, { cache: 'no-store' });
   await r.arrayBuffer();
-  return now() - t0;
+  const wall = now() - t0;
+  const entry = performance.getEntriesByName(url).pop();
+  if (performance.getEntriesByType('resource').length > 200) performance.clearResourceTimings();
+  if (entry && entry.requestStart > 0 && entry.responseStart >= entry.requestStart) {
+    return entry.responseStart - entry.requestStart;
+  }
+  return wall;
 }
 
 export class SpeedTest {
@@ -44,11 +54,13 @@ export class SpeedTest {
     const result = { streams: this.streams, warmupMs: this.warmupMs, durationMs: this.durationMs };
     this.onUpdate({ phase: 'ping' });
     result.idle = await this.idleLatency();
+    this.onUpdate({ phase: 'partial', result: { ...result } });
     if (this.aborted) throw new Error('cancelled');
     const down = await this.download();
     result.download = down.summary;
     result.downloadLoaded = down.loaded;
     result.downloadSlices = down.slices;
+    this.onUpdate({ phase: 'partial', result: { ...result } });
     if (this.aborted) throw new Error('cancelled');
     const up = await this.upload();
     result.upload = up.summary;
@@ -59,14 +71,18 @@ export class SpeedTest {
   }
 
   async idleLatency() {
-    await ping(this.main); // open the connection first
+    // Discard a few pings: the first opens the connection, and the next ones
+    // wake the phone's Wi-Fi from power saving. Pings then go back to back so
+    // the radio stays awake and doesn't add its wake-up delay.
+    for (let i = 0; i < 4 && !this.aborted; i++) await ping(this.main);
     const ms = [];
     for (let i = 0; i < 20 && !this.aborted; i++) {
       ms.push(await ping(this.main));
-      this.onUpdate({ phase: 'ping', latency: ms[ms.length - 1] });
-      await sleep(50);
+      this.onUpdate({ phase: 'ping', latency: summarizeLatency(ms).median, progress: ms.length / 20 });
     }
-    return summarizeLatency(ms);
+    const summary = summarizeLatency(ms);
+    if (summary) summary.samples = ms.map((v) => Math.round(v * 100) / 100);
+    return summary;
   }
 
   // Pings on the main origin during a load phase; only counted after warm-up.

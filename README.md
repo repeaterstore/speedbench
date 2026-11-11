@@ -22,7 +22,7 @@ The method follows what matched Ookla in the waveform-att-aia-app comparisons:
 
 - **8 parallel streams**, with request sizes that adapt toward about 1 s per request.
 - **5 s warm-up excluded**, then a **15 s measured window** per direction. All three are settings.
-- **Headline = plain average** of bytes moved in the measured window. The Ookla-style trimmed mean (drop slowest 30 % and fastest 10 % of 250 ms slices) and the median are shown underneath. A setting makes the trimmed figure the headline.
+- **Headline = Ookla-style trimmed mean** by default: the measured window is cut into 250 ms slices, and the slowest 30 % and fastest 10 % are dropped before averaging. The plain average (all bytes in the window) and the median are shown underneath. A setting switches the headline to the plain average.
 - **Upload is counted at the server.** The browser's upload progress counts bytes handed to its send buffer, so on deeply buffered links (CBRS/LTE) it reads high early and then sags. Here the client polls `/api/progress`, which reports bytes the server has actually received, stamped with the server's clock.
 - **Download** is counted in the browser as bytes arrive.
 - **Latency:** 20 idle pings (median and jitter), plus pings during each load phase after warm-up (latency under load).

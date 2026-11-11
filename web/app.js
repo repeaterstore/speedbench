@@ -2,6 +2,11 @@ import { SpeedTest } from './engine.js';
 import { Gauge } from './gauge.js';
 
 const gauge = new Gauge(document.getElementById('dial'));
+const fmt2 = (v) => (v == null || !Number.isFinite(v) ? '—' : v.toFixed(1));
+// While a transfer runs, the big number follows the gauge's eased value every
+// animation frame, so the decimals tick continuously like Ookla's readout.
+let liveReadout = false;
+gauge.onFrame = (v) => { if (liveReadout) document.getElementById('value').textContent = fmt2(v); };
 
 const $ = (id) => document.getElementById(id);
 const fmt = (v, d = 1) => (v == null || !Number.isFinite(v) ? '—' : v >= 100 ? v.toFixed(0) : v.toFixed(d));
@@ -15,7 +20,22 @@ for (const id of ['streams', 'warmup', 'duration', 'device']) {
   if (saved != null) $(id).value = saved;
   $(id).addEventListener('change', () => store.set(`lst.${id}`, $(id).value));
 }
-$('trim').checked = store.get('lst.trim') === '1';
+// Ookla-style trimming is the default; only an explicit opt-out turns it off.
+$('trim').checked = store.get('lst.trim') !== '0';
+
+// A made-up, editable name so each device is recognisable in shared results.
+const ADJ = ['Swift', 'Brave', 'Lucky', 'Mellow', 'Zippy', 'Cosmic', 'Sunny', 'Quiet', 'Nimble', 'Bold', 'Clever', 'Fuzzy', 'Jolly', 'Rapid', 'Velvet', 'Amber'];
+const NOUN = ['Otter', 'Falcon', 'Badger', 'Comet', 'Panda', 'Heron', 'Lynx', 'Maple', 'Pebble', 'Orca', 'Fox', 'Koala', 'Sparrow', 'Bison', 'Gecko', 'Puffin'];
+const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
+if (!$('device').value.trim()) {
+  $('device').value = `${pickOne(ADJ)} ${pickOne(NOUN)}`;
+  store.set('lst.device', $('device').value);
+}
+$('device').addEventListener('input', () => store.set('lst.device', $('device').value));
+$('device').addEventListener('keydown', (e) => e.key === 'Enter' && e.target.blur());
+$('device').addEventListener('blur', () => {
+  if (!$('device').value.trim()) { $('device').value = `${pickOne(ADJ)} ${pickOne(NOUN)}`; store.set('lst.device', $('device').value); }
+});
 $('trim').addEventListener('change', () => store.set('lst.trim', $('trim').checked ? '1' : '0'));
 
 let config = { dataPorts: [] };
@@ -30,30 +50,42 @@ function headline(s) {
   return $('trim').checked ? s.trimmed : s.mean;
 }
 
-function sub(s) {
-  if (!s) return '';
-  return $('trim').checked ? `avg ${fmt(s.mean)} · median ${fmt(s.median)}` : `trimmed ${fmt(s.trimmed)} · median ${fmt(s.median)}`;
-}
-
 function renderResult(r) {
   $('down').textContent = fmt(headline(r.download));
-  $('downSub').textContent = sub(r.download);
   $('up').textContent = fmt(headline(r.upload));
-  $('upSub').textContent = sub(r.upload);
   $('ping').textContent = r.idle ? `${fmt(r.idle.median)} ms` : '—';
   $('pingSub').textContent = r.idle ? `jitter ${fmt(r.idle.jitter)} ms` : '';
-  $('loaded').textContent = r.downloadLoaded || r.uploadLoaded ? `${fmt(r.downloadLoaded?.median, 0)} / ${fmt(r.uploadLoaded?.median, 0)}` : '—';
+  $('loaded').textContent = r.downloadLoaded || r.uploadLoaded ? `${fmt(r.downloadLoaded?.median)} / ${fmt(r.uploadLoaded?.median)}` : '—';
   $('loadedSub').textContent = 'ms during ↓ / ↑';
 }
 $('trim').addEventListener('change', () => lastResult && renderResult(lastResult));
 
-// Centered moving average (display only; results are not affected).
-function smooth(values, k = 3) {
+// Gaussian-weighted smoothing (display only; results are not affected).
+function smooth(values, sigma = 3) {
+  const k = Math.ceil(sigma * 3);
+  const w = Array.from({ length: 2 * k + 1 }, (_, i) => Math.exp(-((i - k) ** 2) / (2 * sigma * sigma)));
   return values.map((_, i) => {
     let sum = 0, n = 0;
-    for (let j = Math.max(0, i - k); j <= Math.min(values.length - 1, i + k); j++) { sum += values[j]; n++; }
+    for (let j = -k; j <= k; j++) {
+      const v = values[i + j];
+      if (v === undefined) continue;
+      sum += v * w[j + k]; n += w[j + k];
+    }
     return sum / n;
   });
+}
+
+// Cubic curve through every point (Catmull-Rom), clamped so it never overshoots below zero.
+function curve(pts, floorY) {
+  const path = new Path2D();
+  path.moveTo(...pts[0]);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1y = Math.min(floorY, p1[1] + (p2[1] - p0[1]) / 6);
+    const c2y = Math.min(floorY, p2[1] - (p3[1] - p1[1]) / 6);
+    path.bezierCurveTo(p1[0] + (p2[0] - p0[0]) / 6, c1y, p2[0] - (p3[0] - p1[0]) / 6, c2y, p2[0], p2[1]);
+  }
+  return path;
 }
 
 function drawChart() {
@@ -73,13 +105,7 @@ function drawChart() {
     if (s.length < 2) continue;
     const c = css.getPropertyValue(color).trim();
     const pts = s.map((v, i) => [8 + (i / (n - 1)) * (w - 16), h - 8 - (v / max) * (h - 16)]);
-    // Curve through midpoints so the line has no corners.
-    const path = new Path2D();
-    path.moveTo(...pts[0]);
-    for (let i = 1; i < pts.length - 1; i++) {
-      path.quadraticCurveTo(...pts[i], (pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2);
-    }
-    path.lineTo(...pts[pts.length - 1]);
+    const path = curve(pts, h - 8);
     const area = new Path2D(path);
     area.lineTo(pts[pts.length - 1][0], h);
     area.lineTo(pts[0][0], h);
@@ -102,8 +128,10 @@ function drawChart() {
 const phaseLabel = { ping: 'Latency', download: 'Download', upload: 'Upload', done: 'Done' };
 let lastLiveSample = 0;
 function onUpdate(u) {
+  if (u.phase === 'partial') { renderResult(u.result); return; }
   if (u.phase === 'ping') {
     $('phase').textContent = 'Latency';
+    if (u.progress != null) $('bar').style.width = `${(u.progress * 100).toFixed(1)}%`;
     if (u.latency != null) { $('value').textContent = fmt(u.latency); document.querySelector('.big .unit').textContent = 'ms'; }
     return;
   }
@@ -112,7 +140,7 @@ function onUpdate(u) {
   gauge.set(u.mbps);
   document.querySelector('.big .unit').textContent = 'Mbps';
   $('phase').textContent = `${phaseLabel[u.phase]}${u.warmup ? ' · warming up' : ''}${u.fromServer ? ' · measured at server' : ''}`;
-  $('value').textContent = fmt(u.mbps);
+  liveReadout = true;
   $('bar').style.width = `${(u.progress * 100).toFixed(1)}%`;
   const t = performance.now();
   if (t - lastLiveSample > 250) {
@@ -125,7 +153,7 @@ function onUpdate(u) {
 async function start() {
   if (test) { test.cancel(); return; }
   series.download = []; series.upload = [];
-  for (const id of ['down', 'up', 'ping', 'loaded']) { $(id).textContent = '—'; $(`${id}Sub`).textContent = ''; }
+  for (const id of ['down', 'up', 'ping', 'loaded']) { $(id).textContent = '—'; const s = $(`${id}Sub`); if (s) s.textContent = ''; }
   gauge.reset();
   gauge.setMode('download');
   $('start').textContent = 'Stop';
@@ -144,7 +172,8 @@ async function start() {
     lastResult = r;
     renderResult(r);
     $('phase').textContent = 'Done';
-    $('value').textContent = fmt(headline(r.download));
+    liveReadout = false;
+    $('value').textContent = fmt2(headline(r.download));
     series.download = r.downloadSlices; series.upload = r.uploadSlices; drawChart();
     await fetch('/api/results', {
       method: 'POST',
@@ -159,6 +188,7 @@ async function start() {
     $('start').textContent = 'Start';
     $('start').classList.remove('stop');
     $('bar').style.width = '0';
+    liveReadout = false;
     gauge.set(0);
     wake?.release?.().catch(() => {});
   }

@@ -125,5 +125,6 @@ export class Gauge {
     this.fill.style.opacity = f > 0.002 ? 1 : 0;
     this.fill.setAttribute('stroke', `url(#g-${this.mode})`);
     this.needle.setAttribute('transform', `rotate(${START + SWEEP * f} ${CX} ${CY})`);
+    this.onFrame?.(this.value);
   }
 }

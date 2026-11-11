@@ -49,3 +49,4 @@ input[type=number] { width: 80px; }
 .gauge-svg[data-mode=upload] .g-hub-dot { fill: var(--up); }
 .gauge-svg[data-mode=download] .g-hub-dot { fill: var(--down); }
 @media (prefers-reduced-motion: reduce) { .g-fill { transition: none; } }
+.big #value { display: inline-block; min-width: 5.2ch; text-align: right; }

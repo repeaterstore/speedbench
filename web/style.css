@@ -1,10 +1,10 @@
 :root {
   --bg: #0d1117; --panel: #161b22; --line: #30363d; --text: #e6edf3; --muted: #8b949e;
-  --down: #3fb8af; --up: #b48ead; --accent: #58a6ff;
+  --down: #22d3ee; --down2: #a3e635; --up: #a78bfa; --up2: #f472b6; --accent: #38bdf8; --track: #21262d;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {
-  :root { --bg: #f6f8fa; --panel: #fff; --line: #d0d7de; --text: #1f2328; --muted: #656d76; --down: #1a7f78; --up: #8250df; --accent: #0969da; color-scheme: light; }
+  :root { --bg: #f6f8fa; --panel: #fff; --line: #d0d7de; --text: #1f2328; --muted: #656d76; --down: #0891b2; --down2: #65a30d; --up: #7c3aed; --up2: #db2777; --accent: #0284c7; --track: #e5e9ee; color-scheme: light; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 -apple-system, system-ui, sans-serif; -webkit-text-size-adjust: 100%; }
@@ -13,9 +13,9 @@ header { display: flex; justify-content: space-between; align-items: baseline; g
 h1 { font-size: 20px; margin: 0; }
 h2 { font-size: 15px; color: var(--muted); font-weight: 600; margin: 20px 0 8px; }
 .server { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.gauge { text-align: center; padding: 24px 0 8px; }
+.gauge { text-align: center; padding: 8px 0; }
 .phase { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 13px; min-height: 18px; }
-.big { font-size: 72px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; margin: 8px 0; }
+.big { font-size: 56px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; margin: 8px 0; }
 .big .unit { font-size: 18px; font-weight: 500; color: var(--muted); margin-left: 6px; }
 .bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin: 8px 0 20px; }
 .bar div { height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
@@ -37,3 +37,15 @@ input[type=number] { width: 80px; }
 .history li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .history .who { color: var(--muted); font-size: 12px; }
 .history .speeds { font-variant-numeric: tabular-nums; text-align: right; }
+.dial { width: min(100%, 340px); margin: 0 auto -28px; }
+.gauge-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.g-track { fill: none; stroke: var(--track); stroke-width: 18; stroke-linecap: round; }
+.g-fill { fill: none; stroke-width: 18; stroke-linecap: round; transition: opacity .2s; }
+.g-ticks line { stroke: var(--muted); stroke-width: 2; stroke-linecap: round; opacity: .6; }
+.g-ticks text { fill: var(--muted); font: 600 12px system-ui; font-variant-numeric: tabular-nums; }
+.g-needle-body { fill: var(--text); }
+.g-hub { fill: var(--panel); stroke: var(--line); stroke-width: 2; }
+.g-hub-dot { fill: var(--accent); }
+.gauge-svg[data-mode=upload] .g-hub-dot { fill: var(--up); }
+.gauge-svg[data-mode=download] .g-hub-dot { fill: var(--down); }
+@media (prefers-reduced-motion: reduce) { .g-fill { transition: none; } }

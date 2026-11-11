@@ -1,4 +1,7 @@
 import { SpeedTest } from './engine.js';
+import { Gauge } from './gauge.js';
+
+const gauge = new Gauge(document.getElementById('dial'));
 
 const $ = (id) => document.getElementById(id);
 const fmt = (v, d = 1) => (v == null || !Number.isFinite(v) ? '—' : v >= 100 ? v.toFixed(0) : v.toFixed(d));
@@ -44,6 +47,15 @@ function renderResult(r) {
 }
 $('trim').addEventListener('change', () => lastResult && renderResult(lastResult));
 
+// Centered moving average (display only; results are not affected).
+function smooth(values, k = 3) {
+  return values.map((_, i) => {
+    let sum = 0, n = 0;
+    for (let j = Math.max(0, i - k); j <= Math.min(values.length - 1, i + k); j++) { sum += values[j]; n++; }
+    return sum / n;
+  });
+}
+
 function drawChart() {
   const c = $('chart');
   const dpr = window.devicePixelRatio || 1;
@@ -57,17 +69,30 @@ function drawChart() {
   const css = getComputedStyle(document.documentElement);
   const n = Math.max(series.download.length, series.upload.length, 2);
   for (const [key, color] of [['download', '--down'], ['upload', '--up']]) {
-    const s = series[key];
+    const s = smooth(series[key]);
     if (s.length < 2) continue;
-    ctx.strokeStyle = css.getPropertyValue(color).trim();
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    s.forEach((v, i) => {
-      const x = 8 + (i / (n - 1)) * (w - 16);
-      const y = h - 8 - (v / max) * (h - 16);
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-    });
-    ctx.stroke();
+    const c = css.getPropertyValue(color).trim();
+    const pts = s.map((v, i) => [8 + (i / (n - 1)) * (w - 16), h - 8 - (v / max) * (h - 16)]);
+    // Curve through midpoints so the line has no corners.
+    const path = new Path2D();
+    path.moveTo(...pts[0]);
+    for (let i = 1; i < pts.length - 1; i++) {
+      path.quadraticCurveTo(...pts[i], (pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2);
+    }
+    path.lineTo(...pts[pts.length - 1]);
+    const area = new Path2D(path);
+    area.lineTo(pts[pts.length - 1][0], h);
+    area.lineTo(pts[0][0], h);
+    area.closePath();
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, c + '55');
+    grad.addColorStop(1, c + '00');
+    ctx.fillStyle = grad;
+    ctx.fill(area);
+    ctx.strokeStyle = c;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = ctx.lineCap = 'round';
+    ctx.stroke(path);
   }
   ctx.fillStyle = css.getPropertyValue('--muted').trim();
   ctx.font = '11px system-ui';
@@ -83,6 +108,8 @@ function onUpdate(u) {
     return;
   }
   if (u.phase === 'done') return;
+  if (gauge.mode !== u.phase) gauge.setMode(u.phase);
+  gauge.set(u.mbps);
   document.querySelector('.big .unit').textContent = 'Mbps';
   $('phase').textContent = `${phaseLabel[u.phase]}${u.warmup ? ' · warming up' : ''}${u.fromServer ? ' · measured at server' : ''}`;
   $('value').textContent = fmt(u.mbps);
@@ -99,6 +126,8 @@ async function start() {
   if (test) { test.cancel(); return; }
   series.download = []; series.upload = [];
   for (const id of ['down', 'up', 'ping', 'loaded']) { $(id).textContent = '—'; $(`${id}Sub`).textContent = ''; }
+  gauge.reset();
+  gauge.setMode('download');
   $('start').textContent = 'Stop';
   $('start').classList.add('stop');
   let wake;
@@ -130,6 +159,7 @@ async function start() {
     $('start').textContent = 'Start';
     $('start').classList.remove('stop');
     $('bar').style.width = '0';
+    gauge.set(0);
     wake?.release?.().catch(() => {});
   }
 }

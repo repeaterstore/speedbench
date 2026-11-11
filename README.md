@@ -1,11 +1,11 @@
-# LAN Speed Test
+# SpeedBench
 
 A self-hosted speed test for the local network: one Go binary with a mobile-first web UI. Any number of devices can test at once.
 
 ## Run
 
 ```sh
-go run .            # or: go build -o local-speedtest . && ./local-speedtest
+go run .            # or: go build -o speedbench . && ./speedbench
 ```
 
 It prints `http://<lan-ip>:8080`; open that on any device on the network. Flags:

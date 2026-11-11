@@ -61,6 +61,23 @@ export function summarizeThroughput(samples, { startT, warmupMs, endT, sliceMs =
   };
 }
 
+/**
+ * The number to show while a phase runs: the result computed the same way as
+ * the final one, on the data so far. It does not follow momentary dips, and at
+ * the end of the phase it equals the final result.
+ * During warm-up (nothing measured yet) it uses everything since the first
+ * `skipMs`, so the dial still climbs from the start.
+ */
+export function liveEstimate(samples, { startT, warmupMs, now, mode = 'trimmed', sliceMs = 250, skipMs = 500 }) {
+  const elapsed = now - startT;
+  const pick = (s) => (s ? (mode === 'trimmed' ? s.trimmed ?? s.mean : s.mean) : null);
+  if (elapsed >= warmupMs + sliceMs) {
+    return pick(summarizeThroughput(samples, { startT, warmupMs, endT: now, sliceMs }));
+  }
+  if (elapsed < skipMs + sliceMs) return null;
+  return pick(summarizeThroughput(samples, { startT, warmupMs: skipMs, endT: now, sliceMs }));
+}
+
 /** Median latency and jitter (mean absolute difference between consecutive samples). */
 export function summarizeLatency(ms) {
   if (!ms.length) return null;

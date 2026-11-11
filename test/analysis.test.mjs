@@ -40,3 +40,30 @@ test('request size adapts toward the target, at most 2x per step', () => {
   assert.equal(nextSize(4 << 20, 2000), 2 << 20);
   assert.equal(nextSize(1 << 20, 0), 1 << 20);
 });
+
+import { liveEstimate } from '../web/analysis.js';
+
+// Steady 100 Mbps (12500 bytes/ms) for 20 s, except a stall from 10.0 to 10.5 s.
+const steady = [];
+let b = 0;
+for (let t = 0; t <= 20000; t += 50) {
+  if (t > 0 && !(t > 10000 && t <= 10500)) b += 12500 * 50;
+  steady.push({ t, bytes: b });
+}
+
+test('live estimate ends exactly at the final result', () => {
+  const final = summarizeThroughput(steady, { startT: 0, warmupMs: 5000, endT: 20000 });
+  assert.equal(liveEstimate(steady, { startT: 0, warmupMs: 5000, now: 20000, mode: 'trimmed' }), final.trimmed);
+  assert.equal(liveEstimate(steady, { startT: 0, warmupMs: 5000, now: 20000, mode: 'mean' }), final.mean);
+});
+
+test('live estimate does not follow a momentary stall', () => {
+  // Right after the stall, a 1 s instantaneous window would read 50 Mbps.
+  const v = liveEstimate(steady, { startT: 0, warmupMs: 5000, now: 10500, mode: 'trimmed' });
+  assert.ok(v > 99, `estimate ${v}`);
+});
+
+test('live estimate is empty for the first instant, then climbs during warm-up', () => {
+  assert.equal(liveEstimate(steady, { startT: 0, warmupMs: 5000, now: 600 }), null);
+  assert.ok(Math.abs(liveEstimate(steady, { startT: 0, warmupMs: 5000, now: 2000 }) - 100) < 1e-9);
+});

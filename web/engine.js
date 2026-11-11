@@ -1,4 +1,4 @@
-import { summarizeThroughput, summarizeLatency, nextSize, sliceRates } from './analysis.js';
+import { summarizeThroughput, summarizeLatency, nextSize, sliceRates, liveEstimate } from './analysis.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const now = () => performance.now();
@@ -32,8 +32,8 @@ async function ping(origin) {
 }
 
 export class SpeedTest {
-  constructor({ streams = 8, warmupMs = 5000, durationMs = 15000, dataPorts = [], onUpdate = () => {} }) {
-    Object.assign(this, { streams, warmupMs, durationMs, onUpdate });
+  constructor({ streams = 8, warmupMs = 5000, durationMs = 15000, dataPorts = [], mode = 'trimmed', onUpdate = () => {} }) {
+    Object.assign(this, { streams, warmupMs, durationMs, mode, onUpdate });
     this.sid = crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2);
     this.main = location.origin;
     const proto = location.protocol;
@@ -60,12 +60,14 @@ export class SpeedTest {
     result.download = down.summary;
     result.downloadLoaded = down.loaded;
     result.downloadSlices = down.slices;
+    this.finish('download', down.summary);
     this.onUpdate({ phase: 'partial', result: { ...result } });
     if (this.aborted) throw new Error('cancelled');
     const up = await this.upload();
     result.upload = up.summary;
     result.uploadLoaded = up.loaded;
     result.uploadSlices = up.slices;
+    this.finish('upload', up.summary);
     this.onUpdate({ phase: 'done' });
     return result;
   }
@@ -99,14 +101,23 @@ export class SpeedTest {
     return summarizeLatency(ms);
   }
 
+  // Shows the running result (same calculation as the final number), not the
+  // instantaneous rate, so brief stalls don't drag the dial down.
   live(samples, phase, startT, fromServer = false) {
     const last = samples[samples.length - 1];
     if (!last) return;
-    const window = samples.filter((s) => s.t >= last.t - 1000);
-    const first = window[0];
-    const mbps = last.t > first.t ? ((last.bytes - first.bytes) * 8) / ((last.t - first.t) * 1000) : 0;
     const elapsed = last.t - startT;
-    this.onUpdate({ phase, mbps, progress: Math.min(1, elapsed / (this.warmupMs + this.durationMs)), warmup: elapsed < this.warmupMs, fromServer });
+    const mbps = liveEstimate(samples, { startT, warmupMs: this.warmupMs, now: last.t, mode: this.mode }) ?? 0;
+    // Instantaneous rate over the last second, for the throughput chart only.
+    const recent = samples.filter((s) => s.t >= last.t - 1000);
+    const instant = last.t > recent[0].t ? ((last.bytes - recent[0].bytes) * 8) / ((last.t - recent[0].t) * 1000) : 0;
+    this.onUpdate({ phase, mbps, instant, progress: Math.min(1, elapsed / (this.warmupMs + this.durationMs)), warmup: elapsed < this.warmupMs, fromServer });
+  }
+
+  // Land the dial exactly on the final result before moving on.
+  finish(phase, summary) {
+    const mbps = summary ? (this.mode === 'trimmed' ? summary.trimmed ?? summary.mean : summary.mean) : 0;
+    this.onUpdate({ phase, mbps, progress: 1, final: true });
   }
 
   // Download is counted in the browser as bytes arrive, which is accurate for this direction.

@@ -3,47 +3,79 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0d1117">
+<meta name="theme-color" content="#16130f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f2ec" media="(prefers-color-scheme: light)">
 <title>SpeedBench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Saira+Semi+Condensed:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main>
-  <header>
-    <h1>SpeedBench</h1>
-    <div id="server" class="server" aria-live="polite">Server: —</div>
+<main class="bench">
+  <header class="top">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 17.5a9 9 0 1 1 15 0"/><path d="M12 13l4.5-5"/><circle cx="12" cy="13" r="1.6"/></svg>
+      SpeedBench
+    </div>
+    <div class="srv" aria-live="polite"><span class="dot" id="srvDot"></span><span id="server">Connecting…</span></div>
   </header>
 
-  <section class="gauge">
-    <div id="dial" class="dial"></div>
-    <div id="phase" class="phase">Ready</div>
-    <div class="big"><span id="value">—</span><span class="unit">Mbps</span></div>
-    <div class="bar"><div id="bar"></div></div>
-    <button id="start" type="button">Start</button>
+  <section class="readings" aria-label="Results">
+    <div class="reading" data-stage="ping">
+      <div class="rl">Ping</div>
+      <div class="rv" id="ping" data-u="ms">—</div>
+      <div class="rs" id="pingSub">&nbsp;</div>
+    </div>
+    <div class="reading" data-stage="download">
+      <div class="rl"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v10M3.5 8.5 8 13l4.5-4.5"/></svg>Download</div>
+      <div class="rv" id="down" data-u="Mbps">—</div>
+      <div class="rs" id="downSub">&nbsp;</div>
+    </div>
+    <div class="reading" data-stage="upload">
+      <div class="rl"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13.5v-10M3.5 7.5 8 3l4.5 4.5"/></svg>Upload</div>
+      <div class="rv" id="up" data-u="Mbps">—</div>
+      <div class="rs" id="upSub">&nbsp;</div>
+    </div>
   </section>
 
-  <section class="cards">
-    <div class="card"><div class="label">↓ Download</div><div class="num" id="down">—</div></div>
-    <div class="card"><div class="label">↑ Upload</div><div class="num" id="up">—</div></div>
-    <div class="card"><div class="label">Ping (idle)</div><div class="num" id="ping">—</div><div class="sub" id="pingSub"></div></div>
-    <div class="card"><div class="label">Ping (loaded)</div><div class="num" id="loaded">—</div><div class="sub" id="loadedSub"></div></div>
+  <section class="instrument" id="instrument" data-state="idle">
+    <div class="dial-wrap">
+      <div id="dial" class="dial"></div>
+      <button id="start" class="go" type="button" aria-label="Start test"><span>GO</span></button>
+    </div>
+    <div class="readout" aria-live="off">
+      <div class="phase" id="phase">Ready</div>
+      <div class="big"><span id="value">0.0</span><span class="unit" id="unit">Mbps</span></div>
+      <div class="progress" aria-hidden="true"><div id="bar"></div></div>
+      <button id="stop" class="stop" type="button">Stop</button>
+    </div>
   </section>
 
-  <canvas id="chart" height="120" aria-label="Throughput over time"></canvas>
+  <section class="trace">
+    <div class="trace-head">
+      <h2>Throughput</h2>
+      <div class="legend"><span class="k down">Download</span><span class="k up">Upload</span><span id="chartMax" class="max"></span></div>
+    </div>
+    <canvas id="chart" aria-label="Throughput over the test"></canvas>
+  </section>
 
-  <details>
+  <section class="log">
+    <h2>Recent tests <span class="hint">all devices on this server</span></h2>
+    <table>
+      <thead><tr><th scope="col">Device</th><th scope="col" class="n">Ping</th><th scope="col" class="n">Down</th><th scope="col" class="n">Up</th></tr></thead>
+      <tbody id="history"><tr><td colspan="4" class="empty">No tests yet. Tap GO to run the first one.</td></tr></tbody>
+    </table>
+  </section>
+
+  <details class="settings">
     <summary>Settings</summary>
-    <label>Parallel streams <input id="streams" type="number" min="1" max="32" value="8"></label>
-    <label>Warm-up (s) <input id="warmup" type="number" min="0" max="30" value="5"></label>
-    <label>Measured window (s) <input id="duration" type="number" min="3" max="60" value="15"></label>
-    <label class="check"><input id="trim" type="checkbox" checked> Headline uses Ookla-style trimming (drop slowest 30%, fastest 10%)</label>
-    <label>Device name <input id="device" type="text" maxlength="40" aria-label="Device name" spellcheck="false" autocomplete="off"></label>
+    <label>Device name <input id="device" type="text" maxlength="40" spellcheck="false" autocomplete="off"></label>
+    <label>Parallel streams <input id="streams" type="number" min="1" max="32" value="8" inputmode="numeric"></label>
+    <label>Warm-up (s) <input id="warmup" type="number" min="0" max="30" value="5" inputmode="numeric"></label>
+    <label>Measured window (s) <input id="duration" type="number" min="3" max="60" value="15" inputmode="numeric"></label>
+    <label class="check"><input id="trim" type="checkbox" checked> Ookla-style trimming (drop slowest 30%, fastest 10%)</label>
   </details>
-
-  <section>
-    <h2>Recent results (all devices)</h2>
-    <ul id="history" class="history"></ul>
-  </section>
 </main>
 <script type="module" src="app.js"></script>
 </body>

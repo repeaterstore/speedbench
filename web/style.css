@@ -206,3 +206,81 @@ input[type=checkbox] { accent-color: var(--down); width: 18px; height: 18px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before { animation: none !important; transition: none !important; }
 }
+
+/* ---- Wide screens: the dial becomes a faceplate on the left, data on the right ---- */
+@media (min-width: 900px) {
+  body { font-size: 15.5px; }
+  .bench {
+    max-width: 1180px;
+    padding: 28px clamp(28px, 4vw, 56px) 48px;
+    display: grid;
+    grid-template-columns: minmax(440px, 1.1fr) minmax(380px, 1fr);
+    grid-template-areas:
+      "top top"
+      "inst read"
+      "inst trace"
+      "inst log"
+      "inst set";
+    grid-template-rows: auto auto auto 1fr auto;
+    column-gap: clamp(36px, 5vw, 72px);
+  }
+  .top { grid-area: top; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+  .brand { font-size: 22px; }
+  .mark { width: 26px; height: 26px; }
+  .srv { font-size: 13.5px; }
+
+  .instrument {
+    grid-area: inst;
+    align-self: start;
+    position: sticky; top: 28px;
+    width: 100%; max-width: none;
+    margin: 28px 0 0;
+    padding: 34px 34px 30px;
+    background: var(--face);
+    border: 1px solid var(--bezel);
+    border-radius: 28px;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 5%, transparent), 0 30px 60px -40px rgba(0, 0, 0, .55);
+  }
+  /* Four engraved screws, like a bench instrument's faceplate. */
+  .instrument::before {
+    content: ''; position: absolute; inset: 16px; pointer-events: none;
+    background:
+      radial-gradient(circle, var(--track) 0 3.5px, transparent 4px) top left / 9px 9px no-repeat,
+      radial-gradient(circle, var(--track) 0 3.5px, transparent 4px) top right / 9px 9px no-repeat,
+      radial-gradient(circle, var(--track) 0 3.5px, transparent 4px) bottom left / 9px 9px no-repeat,
+      radial-gradient(circle, var(--track) 0 3.5px, transparent 4px) bottom right / 9px 9px no-repeat;
+  }
+  .instrument::after {
+    content: 'LAN · server-measured upload'; position: absolute; left: 0; right: 0; top: 14px;
+    text-align: center; font: 600 10.5px var(--body); letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint);
+  }
+  .dial-wrap { max-width: 520px; margin: 0 auto; }
+  .d-bezel { fill: var(--bg); }
+  .readout { margin-top: -4px; }
+  #value { font-size: 68px; }
+  .unit { font-size: 16px; }
+  .phase { font-size: 12.5px; }
+  .progress { width: 180px; }
+  .go span { font-size: 44px; }
+
+  .readings { grid-area: read; margin: 28px 0 0; border-top: 0; }
+  .reading { padding: 4px 0 16px 18px; }
+  .reading::after { left: 18px; right: 18px; }
+  .rl { font-size: 12px; }
+  .rv { font-size: clamp(30px, 3.1vw, 44px); margin-top: 6px; }
+  .reading.filled .rv::after { font-size: 13px; margin-left: 4px; }
+  .rs { font-size: 12.5px; margin-top: 2px; }
+
+  .trace { grid-area: trace; margin-top: 30px; }
+  #chart { height: 190px; }
+  .log { grid-area: log; margin-top: 30px; }
+  table { font-size: 14.5px; }
+  .settings { grid-area: set; margin-top: 28px; }
+}
+
+@media (min-width: 900px) and (prefers-color-scheme: light) {
+  .instrument { box-shadow: 0 1px 0 rgba(255, 255, 255, .7) inset, 0 30px 60px -40px rgba(60, 45, 20, .35); }
+}
+@media (min-width: 1280px) {
+  .dial-wrap { max-width: 560px; }
+}

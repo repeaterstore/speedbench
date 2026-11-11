@@ -1,0 +1,1 @@
+{"version":"0.0.1","configurations":[{"name":"speedtest","runtimeExecutable":"go","runtimeArgs":["run",".","-results","results.jsonl"],"port":8080}]}

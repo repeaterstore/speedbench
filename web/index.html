@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<title>LAN Speed Test</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>LAN Speed Test</h1>
+    <div id="server" class="server" aria-live="polite">Server: —</div>
+  </header>
+
+  <section class="gauge">
+    <div id="phase" class="phase">Ready</div>
+    <div class="big"><span id="value">—</span><span class="unit">Mbps</span></div>
+    <div class="bar"><div id="bar"></div></div>
+    <button id="start" type="button">Start</button>
+  </section>
+
+  <section class="cards">
+    <div class="card"><div class="label">↓ Download</div><div class="num" id="down">—</div><div class="sub" id="downSub"></div></div>
+    <div class="card"><div class="label">↑ Upload</div><div class="num" id="up">—</div><div class="sub" id="upSub"></div></div>
+    <div class="card"><div class="label">Ping (idle)</div><div class="num" id="ping">—</div><div class="sub" id="pingSub"></div></div>
+    <div class="card"><div class="label">Ping (loaded)</div><div class="num" id="loaded">—</div><div class="sub" id="loadedSub"></div></div>
+  </section>
+
+  <canvas id="chart" height="120" aria-label="Throughput over time"></canvas>
+
+  <details>
+    <summary>Settings</summary>
+    <label>Parallel streams <input id="streams" type="number" min="1" max="32" value="8"></label>
+    <label>Warm-up (s) <input id="warmup" type="number" min="0" max="30" value="5"></label>
+    <label>Measured window (s) <input id="duration" type="number" min="3" max="60" value="15"></label>
+    <label class="check"><input id="trim" type="checkbox"> Headline uses Ookla-style trimming (drop slowest 30%, fastest 10%)</label>
+    <label>Device name <input id="device" type="text" maxlength="40" placeholder="e.g. iPhone 13 Pro"></label>
+  </details>
+
+  <section>
+    <h2>Recent results (all devices)</h2>
+    <ul id="history" class="history"></ul>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
